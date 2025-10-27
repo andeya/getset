@@ -150,13 +150,21 @@ fn parse_skip_attr(meta: &ParseNestedMeta<'_>, attr: &Attribute) -> Vec<GenMode>
 fn new_gen_params(gen_mode: GenMode, p: &ParseNestedMeta<'_>, attr: &Attribute) -> GenParams {
     let mut vis = None;
     let mut is_const = None;
+    let mut as_ref = None;
+    let mut into = None;
     let _ = p.parse_nested_meta(|pp| {
-        let (_vis, _is_const) = parse_vis_meta(&pp, attr);
+        let (_vis, _is_const, _as_ref, _into) = parse_vis_meta(&pp, attr);
         if let Some(x) = _vis {
             vis = Some(x);
         }
         if let Some(x) = _is_const {
             is_const = Some(x);
+        }
+        if let Some(x) = _as_ref {
+            as_ref = Some(x);
+        }
+        if let Some(x) = _into {
+            into = Some(x);
         }
         Ok(())
     });
@@ -164,12 +172,19 @@ fn new_gen_params(gen_mode: GenMode, p: &ParseNestedMeta<'_>, attr: &Attribute) 
         mode: gen_mode,
         vis,
         is_const,
+        as_ref,
+        into,
     }
 }
 
-fn parse_vis_meta(p: &ParseNestedMeta<'_>, attr: &Attribute) -> (Option<Visibility>, Option<bool>) {
+fn parse_vis_meta(
+    p: &ParseNestedMeta<'_>,
+    attr: &Attribute,
+) -> (Option<Visibility>, Option<bool>, Option<bool>, Option<bool>) {
     match &p.path {
-        x if x.is_ident("const") => (None, Some(true)),
+        x if x.is_ident("const") => (None, Some(true), None, None),
+        x if x.is_ident("as_ref") => (None, None, Some(true), None),
+        x if x.is_ident("into") => (None, None, None, Some(true)),
         x if x.is_ident("pub") => match p.value() {
             Ok(v) => match v.parse::<LitStr>() {
                 Ok(vv) => (
@@ -180,12 +195,14 @@ fn parse_vis_meta(p: &ParseNestedMeta<'_>, attr: &Attribute) -> (Option<Visibili
                         x => abort!(attr, "Invalid visibility found: pub = \"{}\"", x),
                     }),
                     None,
+                    None,
+                    None,
                 ),
                 Err(e) => abort!(attr, "Invalid visibility found1: {}", e),
             },
-            Err(_e) => (Some(syn::parse_str("pub").unwrap()), None),
+            Err(_e) => (Some(syn::parse_str("pub").unwrap()), None, None, None),
         },
-        _ => (None, None),
+        _ => (None, None, None, None),
     }
 }
 
